@@ -27,12 +27,12 @@ tasks.named("dependencyUpdates").configure {
         }
 
         if (foundMap.isEmpty()) {
-            println "No new update found"
+            println "Your project is updated! No new update found"
         } else {
             def sourcePath = "$rootDir/build.gradle"
             def destPath = "$rootDir/build.gradle.replaced"
             println "Found new updates, the file $destPath contains the new values"
-            println "If any is ok you can replace original $sourcePath (mv $destPath $sourcePath)"
+            println "If everything is ok you can replace original $sourcePath (mv $destPath $sourcePath)"
             writeReplaced(sourcePath, destPath, foundMap)
         }
         println "\nNot found in map"
