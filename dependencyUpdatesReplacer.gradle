@@ -1,0 +1,87 @@
+/**
+ * Copyright 2021 Davide Ficano. All Rights Reserved.
+ *
+ * Run dependencyUpdates and generates an updaded build.gradle containing the new version values
+ * ./gradlew dependencyUpdates
+ */
+
+import java.util.regex.Pattern
+
+tasks.named("dependencyUpdates").configure {
+    outputFormatter = { result ->
+        def libraryPropertyMap = buildLibraryPropertyMap(project)
+        def foundMap = [:]
+        def notFoundStrings = new StringWriter()
+
+        def updatable = result.outdated.dependencies
+        if (!updatable.isEmpty()) {
+                updatable.each { dependency ->
+                def depVersion = dependency.available.release ?: dependency.available.milestone
+                def propName = libraryPropertyMap["${dependency.group}:${dependency.name}"]
+                if (propName == null) {
+                    notFoundStrings.append("- ${dependency.group}:${dependency.name} [ ${dependency.version} -> ${depVersion} ]\n")
+                } else {
+                    foundMap[propName] = depVersion
+                }
+            }
+        }
+
+        if (foundMap.isEmpty()) {
+            println "No new update found"
+        } else {
+            def sourcePath = "$rootDir/build.gradle"
+            def destPath = "$rootDir/build.gradle.replaced"
+            println "Found new updates, the file $destPath contains the new values"
+            println "If any is ok you can replace original $sourcePath (mv $destPath $sourcePath)"
+            writeReplaced(sourcePath, destPath, foundMap)
+        }
+        println "\nNot found in map"
+        println notFoundStrings.toString()
+    }
+}
+
+static def writeReplaced(sourcePath, destPath, versionMap) {
+    new File(destPath).withWriter { writer ->
+        new File(sourcePath).eachLine { line ->
+            def replacedLine = null
+            versionMap.find { propName, version ->
+                def m = Pattern.compile("(^\\s+${propName}\\s+=\\s+)'(.*?)'").matcher(line)
+                def found = m.matches()
+                if (found) {
+                    replacedLine = m.replaceFirst("\$1'${version}'")
+                }
+                return found
+            }
+            writer.write replacedLine == null ? line : replacedLine
+            writer.write "\n"
+        }
+    }
+}
+
+static def buildLibraryPropertyMap(project) {
+    def libMap = [:]
+
+    def sharedDepFile = new File(project.projectDir, "shared-dependencies.gradle")
+    if (sharedDepFile.exists()) {
+        addLibraryDep(sharedDepFile, libMap)
+    }
+
+    project.childProjects.each { k, v ->
+        addLibraryDep(new File(v.projectDir, "build.gradle"), libMap)
+    }
+    return libMap
+}
+
+static def addLibraryDep(file, map) {
+    def patterns = [
+        Pattern.compile("\\b(?:api|kapt|implementation|testImplementation|androidTestImplementation)\\b\\s+\"(.*?):\\\$\\{?(.*?)}?\""),
+    ]
+    file.eachLine { line ->
+        patterns.each { pattern ->
+            def m = pattern.matcher(line)
+            if (m.find()) {
+                map[m.group(1)] = m.group(2).replace("rootProject.ext.", "")
+            }
+        }
+    }
+}
