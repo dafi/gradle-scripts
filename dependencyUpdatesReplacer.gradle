@@ -2,7 +2,8 @@
  * Copyright 2021 Davide Ficano. All Rights Reserved.
  *
  * Run dependencyUpdates and generates an updaded build.gradle containing the new version values
- * ./gradlew dependencyUpdates
+ * Pass deps.replacer.overwriteBuildFile to not overwrite build.gradle (default is true)
+ * ./gradlew dependencyUpdates -Pdeps.replacer.overwriteBuildFile=false
  */
 
 import java.util.regex.Pattern
@@ -29,13 +30,22 @@ tasks.named("dependencyUpdates").configure {
         if (foundMap.isEmpty()) {
             println "Your project is updated! No new update found"
         } else {
+            def overwriteBuildProperty = 'deps.replacer.overwriteBuildFile'
+            def overwriteBuildFile = project.hasProperty(overwriteBuildProperty)
+                    ? "true".equalsIgnoreCase(project.property(overwriteBuildProperty)) : true
+
             def sourcePath = "$rootDir/build.gradle"
             def destPath = "$rootDir/build.gradle.replaced"
-            println "Found new updates, the file $destPath contains the new values"
-            println "If everything is ok you can replace original $sourcePath (mv $destPath $sourcePath)"
             writeReplaced(sourcePath, destPath, foundMap)
+            if (overwriteBuildFile) {
+                new File(destPath).renameTo(new File(sourcePath))
+                println "$sourcePath replaced with new values"
+            } else {
+                println "Found new updates, the file $destPath contains the new values"
+                println "If everything is ok you can replace original $sourcePath (mv $destPath $sourcePath)"
+            }
         }
-        println "\nNot found in map"
+        println "\nDependencies not found in map"
         println notFoundStrings.toString()
     }
 }
